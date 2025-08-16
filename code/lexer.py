@@ -48,12 +48,12 @@ class BaoLexer:
         'STRING_BACK',  # 反引号字符串，例如 `` `template` ``
         
         # 标识符
-        # 'IDENTIFIER',   # 
-        'TEMP_VAR',     # 临时变量 ($t)
-        'PERSONAL_VAR', # 个人变量 ($m)
-        'GROUP_VAR',    # 群变量 ($g)
-        'BUILTIN_VAR',  # 内置变量
-        'CONSTANT_VAR', # 无前缀变量
+        'IDENTIFIER',   # 所有类型的变量
+        # 'TEMP_VAR',     # 临时变量 ($t)
+        # 'PERSONAL_VAR', # 个人变量 ($m)
+        # 'GROUP_VAR',    # 群变量 ($g)
+        # 'BUILTIN_VAR',  # 内置变量
+        # 'CONSTANT_VAR', # 无前缀变量
 
         # 特殊类型
         'CUSTOM_TEXT',  # 自定义文本
@@ -67,6 +67,47 @@ class BaoLexer:
         self.reserved = {
             'if': 'IF',
             'else': 'ELSE'
+        }
+
+        self.builtin_vars = {
+            # 基本上照抄手册介绍
+            # 玩家和账号信息
+            '$t玩家': 'BUILTIN_PLAYER',               # 当前人物卡名，不存在则为群或 QQ 昵称
+            '$t玩家_RAW': 'BUILTIN_PLAYER_RAW',       # 同上，但不含<>
+            '$tQQ 昵称': 'BUILTIN_QQ_NICKNAME',       # QQ 昵称
+            '$t账号 ID': 'BUILTIN_ACCOUNT_ID',        # 海豹格式的账号 ID，如 QQ:123456789
+            '$t账号 ID_RAW': 'BUILTIN_ACCOUNT_ID_RAW',# 原始格式的账号 ID，如 123456789
+            '$tQQ': 'BUILTIN_QQ',                     # 海豹格式的账号 ID，同 $t账号 ID
+
+            # 群组信息
+            '$t群名': 'BUILTIN_GROUP_NAME',           # 群名
+            '$t群号': 'BUILTIN_GROUP_ID',             # 海豹格式的群 ID，如 QQ-Group:987654321
+            '$t群号_RAW': 'BUILTIN_GROUP_ID_RAW',     # 原始格式的群 ID，如 987654321
+
+            # 时间信息
+            '$tDate': 'BUILTIN_DATE',                 # 数字格式的日期，如 20230109
+            '$tYear': 'BUILTIN_YEAR',                 # 数字格式的年份，如 2023
+            '$tMonth': 'BUILTIN_MONTH',               # 数字格式的月份，如 1
+            '$tDay': 'BUILTIN_DAY',                   # 数字格式的日期，如 9
+            '$tWeekday': 'BUILTIN_WEEKDAY',           # 数字格式的星期（1-7）
+            '$tHour': 'BUILTIN_HOUR',                 # 数字格式的小时
+            '$tMinute': 'BUILTIN_MINUTE',             # 数字格式的分钟
+            '$tSecond': 'BUILTIN_SECOND',             # 数字格式的秒
+            '$tTimestamp': 'BUILTIN_TIMESTAMP',       # 10 位时间戳
+
+            # 消息和环境信息
+            '$t文本长度': 'BUILTIN_TEXT_LENGTH',       # 消息文本长度，汉字长度为 3
+            '$t平台': 'BUILTIN_PLATFORM',             # 触发平台，如 QQ
+            '$t游戏模式': 'BUILTIN_GAME_MODE',         # 游戏模式，如 coc7 或 dnd
+            '$t消息类型': 'BUILTIN_MESSAGE_TYPE',     # 消息类型，'group' 或 'private'
+            '$tMsgID': 'BUILTIN_MESSAGE_ID',           # 消息 ID，仅自定义回复可用
+            '$t个人骰子面数': 'BUILTIN_PERSONAL_DICE_SIDES', # 个人骰子面数
+            '$t日志开启': 'BUILTIN_LOG_ON',             # 日志是否开启，true 或 false
+
+            # 娱乐和常量
+            '娱乐：今日人品': 'BUILTIN_TODAY_LUCK',      # 今日人品
+            '常量:APPNAME': 'BUILTIN_CONSTANT_APPNAME', # 软件名，SealDice
+            '常量:VERSION': 'BUILTIN_CONSTANT_VERSION', # 版本号，如 1.5.0-dev
         }
         self.lexer = None
         self.warnings = []
@@ -88,15 +129,38 @@ class BaoLexer:
     # 规则函数
     # -----------------------------------------------------------------------------
     
-    # $t
-    def t_TEMP_VAR(self, t):
-        r'\$t[A-Za-z0-9\u4E00-\u9FFF]+'
+
+    # 标识符（变量）
+    def t_IDENTIFIER(self, t):
+        if t.value in self.builtin_vars: # 尝试匹配内置变量字典
+            t.type = self.builtin_vars[t.value] # 使用字典中对应的 type
+            return t
+        else:
+            if t.value.startswith('$t'):
+                t.type = 'TEMP_VAR' # 临时变量
+            elif t.value.startswith('$m'):
+                t.type = 'PERSONAL_VAR' # 个人变量
+            elif t.value.startswith('$g'):
+                t.type = 'GROUP_VAR' # 群变量
+            else:
+                t.type = 'CONSTANT_VAR' # 无前缀变量
         return t
 
     # 骰子表达式
     def t_DICE(self, t):
         r'\d+d\d+'
-        return t    
+        return t
+
+    # 牌堆表达式
+    def t_DRAW(self, t):
+        r'\#{DRAW\-[A-Za-z0-9\u4E00-\u9FFF]+}'
+        return t
+    
+    # 换行符
+    def t_ENDEL(self, t):
+        r'\n+|\#{SPLIT}'
+        t.lexer.lineno += len(t.value)
+        return None
     
     # -----------------------------------------------------------------------------
     # 辅助方法
@@ -104,3 +168,37 @@ class BaoLexer:
     def build(self, **kwargs):
         self.lexer = lex.lex(module=self, **kwargs)
         return self.lexer
+
+    # -----------------------------------------------------------------------------
+    # 废码留档
+    # -----------------------------------------------------------------------------
+
+    '''
+    # $t
+    # 由于优先级问题，更换处理方式
+    def t_TEMP_VAR(self, t):
+        r'\$t[A-Za-z0-9\u4E00-\u9FFF]+'
+        return t
+        
+    # $m
+    def t_PERSONAL_VAR(self, t):
+        r'\$m[A-Za-z0-9\u4E00-\u9FFF]+'
+        return t
+    
+    # $g
+    def t_GROUP_VAR(self, t):
+        r'\$g[A-Za-z0-9\u4E00-\u9FFF]+'
+        return t
+    
+    # 内置变量
+    def t_BUILTIN_VAR(self, t):
+        r'\$t[A-Za-z0-9_\u4E00-\u9FFF]+|娱乐：今日人品 | 常量:APPNAME|常量:VERSION'
+        if t.value in self.builtin_vars:
+            t.type = self.builtin_vars[t.value]
+        return t
+    
+    # 无前缀变量
+    def t_CONSTANT_VAR(self, t):
+        r' [A-Za-z0-9\u4E00-\u9FFF]+ '
+        return t
+    '''
