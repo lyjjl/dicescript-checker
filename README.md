@@ -1,5 +1,5 @@
-# sealscript-checker
-海豹核心 (SealDice) 内置脚本语言--豹语 的第三方语法检查器。
+# dicescript-checker
+海豹核心 (SealDice) 内置脚本语言--豹语 (dicescript) 的第三方语法检查器。
 
 <p align="center">
   <img alt="Python 3.13" src="https://img.shields.io/badge/Python-3.13-blue?style=flat&logo=python">
