@@ -1,11 +1,15 @@
 import ply.lex as lex
 
+# 文件所有注释均为上注释或后注释
+# 如果遇到其他情况请 issue 或直接 pr
+
 class BaoLexer:
     # token 列表
     tokens = [
         # 关键字
-        'IF',           # if 语句 条件判断
-        'ELSE',         # else 语句 通常与 if 配合使用
+        'KEYWORD',      # 关键字的总和
+        # 'IF',           # if 语句 条件判断
+        # 'ELSE',         # else 语句 通常与 if 配合使用
 
         # 执行块标记
         'EXEC_START',   # 执行块开始标记 {%
@@ -177,6 +181,11 @@ class BaoLexer:
     t_GE         = r'>='    # 匹配 >= 大于等于
     t_LE         = r'<='    # 匹配 <= 小于等于
 
+    # 逻辑运算符
+    t_AND        = r'\&\&'
+    t_OR         = r'\|\|'
+    t_NOT        = r'!'
+
     # 标点符号
     t_QUESTION   = r'\?'    # 匹配 ? 问号
     t_SEMICOLON  = r';'     # 匹配 ; 结束一个语句
@@ -189,7 +198,7 @@ class BaoLexer:
     t_COMMA      = r','     # 匹配 , 用于分隔列表或函数参数
 
     # 忽略规则
-    t_ignore = ' \t'
+    t_ignore = ' \n\t'
 
     # 错误处理
     def t_error(self, t):
@@ -200,21 +209,27 @@ class BaoLexer:
     # 规则函数
     # -----------------------------------------------------------------------------
     
-
-    # 标识符（变量）
-    def t_IDENTIFIER(self, t):
-        if t.value in self.builtin_vars: # 尝试匹配内置变量字典
-            t.type = self.builtin_vars[t.value] # 使用字典中对应的 type
+    # 保留关键字
+    def t_KEYWORD(self, t):
+        r'[a-zA-Z_][a-zA-Z0-9_]*'
+        # 仅在字典中匹配到的情况下处理
+        if t.value in self.reserved:
+            t.type = self.reserved[t.value]
             return t
-        else:
-            if t.value.startswith('$t'):
-                t.type = 'TEMP_VAR' # 临时变量
-            elif t.value.startswith('$m'):
-                t.type = 'PERSONAL_VAR' # 个人变量
-            elif t.value.startswith('$g'):
-                t.type = 'GROUP_VAR' # 群变量
-            else:
-                t.type = 'CONSTANT_VAR' # 无前缀变量
+
+    def t_STRING_SINGLE(self, t):
+        r"'([^'\n]|\\')*'" # 单引号
+        t.value = t.value[1:-1]  # 去掉引号
+        return t
+
+    def t_STRING_DOUBLE(self, t):
+        r'"([^"\n]|\\")*"' # 双引号
+        t.value = t.value[1:-1]  # 去掉引号
+        return t
+
+    def t_STRING_BACK(self, t):
+        r"`([^`\n]|\\`)*`" # 反引号
+        t.value = t.value[1:-1]  # 去掉引号
         return t
 
     # 骰子表达式
@@ -232,6 +247,24 @@ class BaoLexer:
         r'\n+|\#\{SPLIT\}'
         t.lexer.lineno += len(t.value)
         return None
+
+    # 标识符（变量）
+    def t_IDENTIFIER(self, t):
+        # 尝试匹配内置变量字典
+        if t.value in self.builtin_vars:
+            # 使用字典中对应的 type
+            t.type = self.builtin_vars[t.value]
+            return t
+        else:
+            if t.value.startswith('$t'):
+                t.type = 'TEMP_VAR' # 临时变量
+            elif t.value.startswith('$m'):
+                t.type = 'PERSONAL_VAR' # 个人变量
+            elif t.value.startswith('$g'):
+                t.type = 'GROUP_VAR' # 群变量
+            else:
+                t.type = 'CONSTANT_VAR' # 无前缀变量
+        return t
     
     # -----------------------------------------------------------------------------
     # 辅助方法
@@ -240,37 +273,38 @@ class BaoLexer:
         self.lexer = lex.lex(module=self, **kwargs)
         return self.lexer
 
+# 构建词法分析器
+lexer = lex.lex()
 
-    # -----------------------------------------------------------------------------
-    # 废码留档
-    # -----------------------------------------------------------------------------
 
-    '''
-    # $t
-    # 由于优先级问题 更换处理方式
-    def t_TEMP_VAR(self, t):
-        r'\$t[A-Za-z0-9\u4E00-\u9FFF]+'
-        return t
+# -----------------------------------------------------------------------------
+# 废码留档
+# -----------------------------------------------------------------------------
+
+#$# # $t
+#$# # 由于优先级问题 更换处理方式
+#$# def t_TEMP_VAR(self, t):
+#$#     r'\$t[A-Za-z0-9\u4E00-\u9FFF]+'
+#$#     return t
         
-    # $m
-    def t_PERSONAL_VAR(self, t):
-        r'\$m[A-Za-z0-9\u4E00-\u9FFF]+'
-        return t
+#$# # $m
+#$# def t_PERSONAL_VAR(self, t):
+#$#     r'\$m[A-Za-z0-9\u4E00-\u9FFF]+'
+#$#     return t
     
-    # $g
-    def t_GROUP_VAR(self, t):
-        r'\$g[A-Za-z0-9\u4E00-\u9FFF]+'
-        return t
+#$# # $g
+#$# def t_GROUP_VAR(self, t):
+#$#     r'\$g[A-Za-z0-9\u4E00-\u9FFF]+'
+#$#     return t
     
-    # 内置变量
-    def t_BUILTIN_VAR(self, t):
-        r'\$t[A-Za-z0-9_\u4E00-\u9FFF]+|娱乐：今日人品 | 常量:APPNAME|常量:VERSION'
-        if t.value in self.builtin_vars:
-            t.type = self.builtin_vars[t.value]
-        return t
+#$# # 内置变量
+#$# def t_BUILTIN_VAR(self, t):
+#$#     r'\$t[A-Za-z0-9_\u4E00-\u9FFF]+|娱乐：今日人品 | 常量:APPNAME|常量:VERSION'
+#$#     if t.value in self.builtin_vars:
+#$#         t.type = self.builtin_vars[t.value]
+#$#     return t
     
-    # 无前缀变量
-    def t_CONSTANT_VAR(self, t):
-        r' [A-Za-z0-9\u4E00-\u9FFF]+ '
-        return t
-    '''
+#$# # 无前缀变量
+#$# def t_CONSTANT_VAR(self, t):
+#$#     r' [A-Za-z0-9\u4E00-\u9FFF]+ '
+#$#     return t
