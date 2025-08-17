@@ -7,7 +7,7 @@ class BaoLexer:
     # token 列表
     tokens = [
         # 关键字
-        'KEYWORD',      # 关键字的总和
+        # 'KEYWORD',      # 关键字的总和
         # 'IF',           # if 语句 条件判断
         # 'ELSE',         # else 语句 通常与 if 配合使用
 
@@ -56,7 +56,7 @@ class BaoLexer:
         'STRING_BACK',  # 反引号字符串 例如`template`
         
         # 变量
-        'IDENTIFIER',     # 所有类型的变量都在一起
+        'IDENTIFIER',   # 所有类型的变量都在一起
         # 'TEMP_VAR',     # 临时变量 ($t)
         # 'PERSONAL_VAR', # 个人变量 ($m)
         # 'GROUP_VAR',    # 群变量 ($g)
@@ -105,14 +105,12 @@ class BaoLexer:
     ]
 
     def __init__(self):
-        # 保留字字典 处理关键字和标识符的冲突
+        # 字典 处理关键字和标识符的冲突
         self.reserved = {
+            # 保留字
             'if': 'IF',
-            'else': 'ELSE'
-        }
-
-        self.builtin_vars = {
-            # 基本上照抄手册介绍 - https://docs.sealdice.com/advanced/script.html#%E5%8F%98%E9%87%8F
+            'else': 'ELSE',
+            # 以下基本上照抄手册介绍 - https://docs.sealdice.com/advanced/script.html#%E5%8F%98%E9%87%8F
             # 玩家和账号信息
             '$t玩家': 'BUILTIN_PLAYER',               # 当前人物卡名 不存在则为群或 QQ 昵称
             '$t玩家_RAW': 'BUILTIN_PLAYER_RAW',       # 同上 但不含<>
@@ -147,7 +145,7 @@ class BaoLexer:
             '$t日志开启': 'BUILTIN_LOG_ON',             # 日志是否开启 true 或 false
 
             # 娱乐和常量
-            '娱乐：今日人品': 'BUILTIN_TODAY_LUCK',      # 今日人品
+            '娱乐:今日人品': 'BUILTIN_TODAY_LUCK',      # 今日人品
             '常量:APPNAME': 'BUILTIN_CONSTANT_APPNAME', # 软件名 SealDice
             '常量:VERSION': 'BUILTIN_CONSTANT_VERSION'  # 版本号 如 1.5.0-dev
         }
@@ -171,7 +169,7 @@ class BaoLexer:
     t_TIMES      = r'\*'    # 匹配 * 乘法运算
     t_DIVIDE     = r'/'     # 匹配 / 除法运算
     t_MODULO     = r'%'     # 匹配 % 取模（求余）运算
-    t_POWER      = r'\*\*'   # 匹配 ** 幂运算
+    t_POWER      = r'\*\*'  # 匹配 ** 幂运算
 
     # 比较运算符
     t_EQ         = r'=='    # 匹配 == 等于
@@ -198,7 +196,7 @@ class BaoLexer:
     t_COMMA      = r','     # 匹配 , 用于分隔列表或函数参数
 
     # 忽略规则
-    t_ignore = ' \n\t'
+    t_ignore = ' \t'
 
     # 错误处理
     def t_error(self, t):
@@ -208,14 +206,6 @@ class BaoLexer:
     # -----------------------------------------------------------------------------
     # 规则函数
     # -----------------------------------------------------------------------------
-    
-    # 保留关键字
-    def t_KEYWORD(self, t):
-        r'[a-zA-Z_][a-zA-Z0-9_]*'
-        # 仅在字典中匹配到的情况下处理
-        if t.value in self.reserved:
-            t.type = self.reserved[t.value]
-            return t
 
     def t_STRING_SINGLE(self, t):
         r"'([^'\n]|\\')*'" # 单引号
@@ -244,16 +234,17 @@ class BaoLexer:
     
     # 换行符
     def t_ENDEL(self, t):
-        r'\n+|\#\{SPLIT\}'
+        r'\n|\#\{SPLIT\}'
         t.lexer.lineno += len(t.value)
         return None
 
     # 标识符（变量）
     def t_IDENTIFIER(self, t):
+        r'if|else|常量:VERSION|常量:APPNAME|娱乐:今日人品|\$[tmg][A-Za-z0-9\u4E00-\u9FFF]+|[A-Za-z0-9\u4E00-\u9FFF]+'
         # 尝试匹配内置变量字典
-        if t.value in self.builtin_vars:
+        if t.value in self.reserved:
             # 使用字典中对应的 type
-            t.type = self.builtin_vars[t.value]
+            t.type = self.reserved[t.value]
             return t
         else:
             if t.value.startswith('$t'):
@@ -300,8 +291,8 @@ lexer = lex.lex()
 #$# # 内置变量
 #$# def t_BUILTIN_VAR(self, t):
 #$#     r'\$t[A-Za-z0-9_\u4E00-\u9FFF]+|娱乐：今日人品 | 常量:APPNAME|常量:VERSION'
-#$#     if t.value in self.builtin_vars:
-#$#         t.type = self.builtin_vars[t.value]
+#$#     if t.value in self.reserved:
+#$#         t.type = self.reserved[t.value]
 #$#     return t
     
 #$# # 无前缀变量
